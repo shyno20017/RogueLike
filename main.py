@@ -223,8 +223,13 @@ class obj_Actor:
                 self._creature.owner = None
                 self._creature = None
         else:
-            self._creature = value
-            self._creature.owner = self
+            if self._creature is None:
+                self._creature = value
+                self._creature.owner = self
+            else:
+                self._creature.owner = None
+                self._creature = value
+                self._creature.owner = self
 
     @property
     def item(self) -> T_ITEM:
@@ -237,8 +242,13 @@ class obj_Actor:
                 self._item.owner = None
                 self._item = None
         else:
-            self._item = value
-            self._item.owner = self
+            if self._item is None:
+                self._item = value
+                self._item.owner = self
+            else:
+                self._item.owner = None
+                self._item = value
+                self._item.owner = self
 
     @property
     def container(self) -> T_CONTAINER:
@@ -251,8 +261,13 @@ class obj_Actor:
                 self._container.owner = None
                 self._container = None
         else:
-            self._container = value
-            self._container.owner = self
+            if self._container is None:
+                self._container = value
+                self._container.owner = self
+            else:
+                self._container.owner = None
+                self._container = value
+                self._container.owner = self
 
     @property
     def ai(self) -> T_AI:
@@ -265,8 +280,18 @@ class obj_Actor:
                 self._ai.owner = None
                 self._ai = None
         else:
-            self._ai = value
-            self._ai.owner = self
+            if self._ai is None:
+                self._ai = value
+                self._ai.owner = self
+            else:
+                self._ai.owner = None
+                self._ai = value
+                self._ai.owner = self
+
+    def distance_to(self, other: T_ACTOR) -> float:
+        dx = other.x - self.x
+        dy = other.y - self.y
+        return ((dx ** 2) + (dy ** 2)) ** 0.5
 
     def __del__(self):
         self.creature = None
@@ -602,6 +627,12 @@ class com_Creature:
 
         return did_something
 
+    def move_towards(self, target: T_ACTOR):
+        line = map_find_line(self.owner.pos, target.pos)
+        target_point = line[1]
+        change_position = (target_point[0] - self.owner.x, target_point[1] - self.owner.y)
+        self.move(*change_position)
+
     def attack(self, target: T_ACTOR, damage: int):
         """Attacks the target creature. Automatically called if the creature moves on the target
 
@@ -770,7 +801,7 @@ class com_Container:
 # /__/     \__\ |__|
 
 
-class ai_Test:
+class ai_Confuse:
     """Once per turn, execute"""
 
     def __init__(self):
@@ -778,6 +809,27 @@ class ai_Test:
 
     def take_turn(self):
         self.owner.creature.move(libtcod.random_get_int(0, -1, 1), libtcod.random_get_int(0, -1, 1))
+
+
+class ai_Chase:
+    """A basic monster the ai that chases and tries to harm the player."""
+    def __init__(self):
+        self.owner: T_ACTOR = None
+
+    def take_turn(self):
+        if libtcod.map_is_in_fov(FOV_MAP, self.owner.x, self.owner.y):
+            # Move towards the player if you can see him
+            self.owner.creature.move_towards(PLAYER)
+        else:
+            # Move randomly
+            self.owner.creature.move(libtcod.random_get_int(0, -1, 1), libtcod.random_get_int(0, -1, 1))
+
+
+#  ____             _   _
+# |  _ \  ___  __ _| |_| |__
+# | | | |/ _ \/ _` | __| '_ \
+# | |_| |  __/ (_| | |_| | | |
+# |____/ \___|\__,_|\__|_| |_|
 
 
 def death_monster(monster: T_ACTOR):
@@ -1763,9 +1815,9 @@ def game_initialize():
     ASSETS = struc_Assets()
     PLAYER = obj_Actor(13, 13, "human", ASSETS.A_PLAYER, creature=com_Creature("Greg"), container=com_Container())
     ENEMY = obj_Actor(15, 15, "Smart Crab", ASSETS.A_ENEMY,
-                      creature=com_Creature("Jackie", death_function=death_monster), ai=ai_Test())
+                      creature=com_Creature("Jackie", death_function=death_monster), ai=ai_Chase())
     ENEMY2 = obj_Actor(14, 15, "Dumb Crab", ASSETS.A_ENEMY,
-                       creature=com_Creature("Bob", death_function=death_monster), ai=ai_Test())
+                       creature=com_Creature("Bob", death_function=death_monster), ai=ai_Confuse())
 
     GAME.current_objects.extend([PLAYER, ENEMY, ENEMY2])
 
@@ -1818,7 +1870,7 @@ def game_handle_keys() -> str:
                 if PLAYER.creature.move(-1, 1):
                     response = "player-moved"
                     FOV_CALCULATE = True
-            elif event.key in [pygame.K_KP5]:
+            elif event.key in [pygame.K_KP5, pygame.K_SPACE]:
                 response = "player-pass"
             elif event.key in [pygame.K_g]:
                 items_at_player = map_get_objects(PLAYER.x, PLAYER.y, item=True)
